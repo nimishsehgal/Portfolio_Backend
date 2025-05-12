@@ -24,7 +24,7 @@ async def equal_weight_cumsum_plot(
     investment_amount: float = Form(...),
     investment_period: int = Form(...)
 ):
-    df_full = pd.read_csv("data/stock_data.csv", index_col=0, parse_dates=True)
+    df_full = pd.read_csv("data/nifty_df_close.csv", index_col=0, parse_dates=True)
     df = df_full[selected_stocks]
 
     if len(df) < investment_period + 1:
@@ -61,10 +61,18 @@ async def equal_weight_cumsum_plot(
     percent_return = (np.exp(final_cum_log_return) - 1) * 100
     final_value = investment_amount * np.exp(final_cum_log_return)
 
+    # Compute per-stock investment
+    equal_weight = 1 / len(selected_stocks)
+    per_stock_investment = {
+        stock: round(equal_weight * investment_amount, 2)
+        for stock in selected_stocks
+    }
+
     return {
         "plot_base64": plot_base64,
         "percent_return": percent_return,
-        "final_value": final_value
+        "final_value": final_value,
+        "per_stock_investment": per_stock_investment
     }
 
 def solve_mean_variance(mu, cov, target_variance):
@@ -101,7 +109,7 @@ async def mean_variance_optimization(
     investment_period: int = Form(...),
     target_risk: float = Form(...)
 ):
-    df_full = pd.read_csv("data/stock_data.csv", index_col=0, parse_dates=True)
+    df_full = pd.read_csv("data/nifty_df_close.csv", index_col=0, parse_dates=True)
     df = df_full[selected_stocks]
 
     if len(df) < 2 * investment_period:
@@ -133,7 +141,7 @@ async def mean_variance_optimization(
     plt.plot(test_returns.index, investment_amount * cumulative_returns, label="Portfolio Value")
     plt.title("Portfolio Value Over Time")
     plt.xlabel("Date")
-    plt.ylabel("Value ($)")
+    plt.ylabel("Value (₹)")
     plt.grid(True)
 
     import matplotlib.dates as mdates
@@ -143,7 +151,16 @@ async def mean_variance_optimization(
     plt.xticks(rotation=45)
 
     plt.subplot(1, 2, 2)
-    plt.bar(selected_stocks, weights)
+    # plt.bar(selected_stocks, weights)
+    percent_weights = [w * 100 for w in weights]
+    # investment_values = [w * investment_amount for w in weights]
+
+    bars = plt.bar(selected_stocks, percent_weights)
+    for bar, pct in zip(bars, percent_weights):
+        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height(), 
+                f"{pct:.1f}%", 
+                ha='center', va='bottom', fontsize=9)
+
     plt.title("Optimal Weights")
     plt.xlabel("Stock")
     plt.ylabel("Weight")
@@ -162,12 +179,20 @@ async def mean_variance_optimization(
     percent_return = (np.exp(final_cum_log_return_mv) - 1) * 100
     final_value = investment_amount * np.exp(final_cum_log_return_mv)
 
+    investment_breakdown = {
+        stock: {
+            "weight_percent": round(w * 100, 2),
+            "amount_invested": round(w * investment_amount, 2)
+        }
+        for stock, w in zip(selected_stocks, weights)
+    }
 
     return {
         "plot_base64": plot_base64,
         "final_value": final_value,
         "total_return": percent_return,
-        "weights": {stock: float(w) for stock, w in zip(selected_stocks, weights)}
+        # "weights": {stock: float(w) for stock, w in zip(selected_stocks, weights)}
+        "investment_breakdown": investment_breakdown
     }
 
 def solve_min_variance(cov):
@@ -202,7 +227,7 @@ async def minimum_risk_optimization(
     investment_amount: float = Form(...),
     investment_period: int = Form(...)
 ):
-    df_full = pd.read_csv("data/stock_data.csv", index_col=0, parse_dates=True)
+    df_full = pd.read_csv("data/nifty_df_close.csv", index_col=0, parse_dates=True)
     df = df_full[selected_stocks]
 
     if len(df) < 2 * investment_period:
@@ -231,7 +256,7 @@ async def minimum_risk_optimization(
     plt.plot(test_returns.index, investment_amount * cumulative_returns, label="Portfolio Value")
     plt.title("Portfolio Value Over Time")
     plt.xlabel("Date")
-    plt.ylabel("Value ($)")
+    plt.ylabel("Value (₹)")
     plt.grid(True)
 
     # Fix overlapping x-axis dates
@@ -242,7 +267,16 @@ async def minimum_risk_optimization(
     plt.xticks(rotation=40)
 
     plt.subplot(1, 2, 2)
-    plt.bar(selected_stocks, weights)
+    # plt.bar(selected_stocks, weights)
+    percent_weights = [w * 100 for w in weights]
+    # investment_values = [w * investment_amount for w in weights]
+
+    bars = plt.bar(selected_stocks, percent_weights)
+    for bar, pct in zip(bars, percent_weights):
+        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height(), 
+                f"{pct:.1f}%",  
+                ha='center', va='bottom', fontsize=9)
+
     plt.title("Optimal Weights")
     plt.xlabel("Stock")
     plt.ylabel("Weight")
@@ -261,10 +295,18 @@ async def minimum_risk_optimization(
     percent_return = (np.exp(final_cum_log_return_mv) - 1) * 100
     final_value = investment_amount * np.exp(final_cum_log_return_mv)
 
+    investment_breakdown = {
+        stock: {
+            "weight_percent": round(w * 100, 2),
+            "amount_invested": round(w * investment_amount, 2)
+        }
+        for stock, w in zip(selected_stocks, weights)
+    }
 
     return {
         "plot_base64": plot_base64,
         "final_value": final_value,
         "total_return": percent_return,
-        "weights": {stock: float(w) for stock, w in zip(selected_stocks, weights)}
+        # "weights": {stock: float(w) for stock, w in zip(selected_stocks, weights)}
+        "investment_breakdown": investment_breakdown
     }
